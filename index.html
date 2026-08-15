@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>آزمون تداخل استروپ (Stroop Task)</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col items-center justify-between min-h-screen p-4 font-sans">
+
+  <!-- هدر و نوار پیشرفت -->
+  <header class="w-full max-w-md pt-2">
+    <div class="flex justify-between items-center text-xs text-slate-400 mb-1">
+      <span id="phaseLabel">آماده‌سازی</span>
+      <span id="trialCounter">۰ / ۰</span>
+    </div>
+    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+      <div id="progressBar" class="bg-blue-500 h-1.5 rounded-full w-0 transition-all duration-200"></div>
+    </div>
+  </header>
+
+  <!-- بوم اصلی نمایش محرک -->
+  <main class="w-full max-w-md flex-1 flex flex-col items-center justify-center relative">
+    
+    <!-- صفحه شروع / توضیحات -->
+    <div id="introScreen" class="text-center space-y-4">
+      <div class="w-14 h-14 bg-blue-600/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">🎯</div>
+      <h1 class="text-xl font-bold text-white">آزمون توجه انتخابی و بازداری (استروپ)</h1>
+      <p class="text-sm text-slate-300 leading-relaxed px-4 text-justify">
+        در این آزمون کلماتی با رنگ‌های مختلف نمایش داده می‌شوند. وظیفه شما این است که 
+        <strong class="text-amber-400">رنگ جوهر کلمه</strong> 
+        را انتخاب کنید و <strong class="text-rose-400">معنای کلمه</strong> را کاملاً نادیده بگیرید.
+      </p>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-400 text-right space-y-1">
+        <p>🔹 مرحله ۱: مرحله آزمایشی (تمرینی برای آشنایی)</p>
+        <p>🔹 مرحله ۲: آزمون اصلی با دقت و سرعت بالا</p>
+      </div>
+      <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3.5 px-6 rounded-xl shadow-lg transition active:scale-95">
+        شروع مرحله تمرینی
+      </button>
+    </div>
+
+    <!-- نشانگر نقطه تثبیت (Fixation Cross) -->
+    <div id="fixationCross" class="hidden text-5xl font-light text-slate-400 animate-pulse">+</div>
+
+    <!-- محرک کلمه -->
+    <div id="stimulusContainer" class="hidden flex flex-col items-center justify-center">
+      <span id="wordStimulus" class="text-5xl md:text-6xl font-black tracking-wide transition-transform"></span>
+    </div>
+
+    <!-- فیدبک پایان مرحله -->
+    <div id="phaseTransitionScreen" class="hidden text-center space-y-4">
+      <h2 class="text-lg font-bold text-emerald-400">مرحله تمرینی تکمیل شد</h2>
+      <p class="text-xs text-slate-300 px-4">اکنون وارد مرحله اصلی ارزیابی می‌شوید. با بیشترین سرعت و دقت ممکن پاسخ دهید.</p>
+      <button id="startMainBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition">
+        شروع آزمون اصلی
+      </button>
+    </div>
+
+  </main>
+
+  <!-- کلیدهای پاسخ رنگی -->
+  <footer id="responseKeys" class="w-full max-w-md grid grid-cols-2 gap-3 pb-4 opacity-30 pointer-events-none transition-opacity duration-150">
+    <button data-color="red" class="bg-red-600/90 active:bg-red-700 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">قرمز</button>
+    <button data-color="blue" class="bg-blue-600/90 active:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">آبی</button>
+    <button data-color="green" class="bg-emerald-600/90 active:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">سبز</button>
+    <button data-color="yellow" class="bg-amber-500/90 active:bg-amber-600 text-slate-950 font-black py-4 rounded-xl shadow-md transition-all active:scale-95">زرد</button>
+  </footer>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    // پالت رنگ‌های استاندارد بالینی
+    const COLORS = [
+      { id: 'red', name: 'قرمز', hex: '#EF4444' },
+      { id: 'blue', name: 'آبی', hex: '#3B82F6' },
+      { id: 'green', name: 'سبز', hex: '#10B981' },
+      { id: 'yellow', name: 'زرد', hex: '#F59E0B' }
+    ];
+
+    // متغیرهای استیت تسک
+    let trials = [];
+    let currentTrialIndex = 0;
+    let stimulusStartTime = 0;
+    let isPractice = true;
+    let trialResults = [];
+    let isAcceptingInput = false;
+
+    const introScreen = document.getElementById('introScreen');
+    const fixationCross = document.getElementById('fixationCross');
+    const stimulusContainer = document.getElementById('stimulusContainer');
+    const wordStimulus = document.getElementById('wordStimulus');
+    const responseKeys = document.getElementById('responseKeys');
+    const progressBar = document.getElementById('progressBar');
+    const trialCounter = document.getElementById('trialCounter');
+    const phaseLabel = document.getElementById('phaseLabel');
+    const phaseTransitionScreen = document.getElementById('phaseTransitionScreen');
+
+    function generateTrials(count, congruentRatio = 0.5) {
+      const generated = [];
+      for (let i = 0; i < count; i++) {
+        const isCongruent = Math.random() < congruentRatio;
+        const wordObj = COLORS[Math.floor(Math.random() * COLORS.length)];
+        let inkObj;
+        if (isCongruent) {
+          inkObj = wordObj;
+        } else {
+          const otherColors = COLORS.filter(c => c.id !== wordObj.id);
+          inkObj = otherColors[Math.floor(Math.random() * otherColors.length)];
+        }
+        generated.push({
+          word: wordObj.name,
+          wordId: wordObj.id,
+          ink: inkObj.hex,
+          inkId: inkObj.id,
+          isCongruent: isCongruent
+        });
+      }
+      return generated;
+    }
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+      introScreen.classList.add('hidden');
+      isPractice = true;
+      trials = generateTrials(4, 0.5); // ۴ ترایال تمرینی
+      currentTrialIndex = 0;
+      trialResults = [];
+      phaseLabel.innerText = 'مرحله تمرینی';
+      runNextTrial();
+    });
+
+    document.getElementById('startMainBtn').addEventListener('click', () => {
+      phaseTransitionScreen.classList.add('hidden');
+      isPractice = false;
+      trials = generateTrials(30, 0.5); // ۳۰ ترایال اصلی بالینی
+      currentTrialIndex = 0;
+      trialResults = [];
+      phaseLabel.innerText = 'آزمون اصلی';
+      runNextTrial();
+    });
+
+    function runNextTrial() {
+      if (currentTrialIndex >= trials.length) {
+        if (isPractice) {
+          phaseTransitionScreen.classList.remove('hidden');
+          return;
+        } else {
+          finishAssessment();
+          return;
+        }
+      }
+
+      // به‌روزرسانی نوار وضعیت
+      trialCounter.innerText = `${currentTrialIndex + 1} / ${trials.length}`;
+      progressBar.style.width = `${((currentTrialIndex) / trials.length) * 100}%`;
+
+      // غیرفعال‌سازی ورودی
+      setInputsActive(false);
+      stimulusContainer.classList.add('hidden');
+      fixationCross.classList.remove('hidden');
+
+      // نمایش نقطه تثبیت (Fixation: 500ms)
+      setTimeout(() => {
+        fixationCross.classList.add('hidden');
+        showStimulus(trials[currentTrialIndex]);
+      }, 500);
+    }
+
+    function showStimulus(trial) {
+      wordStimulus.innerText = trial.word;
+      wordStimulus.style.color = trial.ink;
+      stimulusContainer.classList.remove('hidden');
+      
+      stimulusStartTime = performance.now();
+      setInputsActive(true);
+    }
+
+    function setInputsActive(active) {
+      isAcceptingInput = active;
+      if (active) {
+        responseKeys.classList.remove('opacity-30', 'pointer-events-none');
+      } else {
+        responseKeys.classList.add('opacity-30', 'pointer-events-none');
+      }
+    }
+
+    // کنترل پاسخ کاربر
+    document.querySelectorAll('#responseKeys button').forEach(btn => {
+      btn.addEventListener('pointerdown', (e) => {
+        if (!isAcceptingInput) return;
+        const responseTime = performance.now() - stimulusStartTime;
+        const selectedColorId = e.currentTarget.getAttribute('data-color');
+        const currentTrial = trials[currentTrialIndex];
+        const isCorrect = (selectedColorId === currentTrial.inkId);
+
+        setInputsActive(false);
+
+        if (!isPractice) {
+          trialResults.push({
+            trial: currentTrialIndex + 1,
+            isCongruent: currentTrial.isCongruent,
+            rt_ms: Math.round(responseTime),
+            isCorrect: isCorrect
+          });
+        }
+
+        currentTrialIndex++;
+        // فاصله بین محرک‌ها (ISI: 400ms)
+        setTimeout(runNextTrial, 400);
+      });
+    });
+
+    function finishAssessment() {
+      progressBar.style.width = '100%';
+      phaseLabel.innerText = 'تکمیل شد';
+      
+      const congruentTrials = trialResults.filter(r => r.isCongruent && r.isCorrect);
+      const incongruentTrials = trialResults.filter(r => !r.isCongruent && r.isCorrect);
+
+      const meanRTCongruent = congruentTrials.length ? 
+        Math.round(congruentTrials.reduce((a, b) => a + b.rt_ms, 0) / congruentTrials.length) : 0;
+      const meanRTIncongruent = incongruentTrials.length ? 
+        Math.round(incongruentTrials.reduce((a, b) => a + b.rt_ms, 0) / incongruentTrials.length) : 0;
+
+      const accuracy = Math.round((trialResults.filter(r => r.isCorrect).length / trialResults.length) * 100);
+
+      const finalReport = {
+        test_name: "Stroop Interference Task",
+        timestamp: new Date().toISOString(),
+        total_trials: trialResults.length,
+        accuracy_percent: accuracy,
+        mean_congruent_rt_ms: meanRTCongruent,
+        mean_incongruent_rt_ms: meanRTIncongruent,
+        stroop_interference_score_ms: meanRTIncongruent - meanRTCongruent,
+        raw_data: trialResults
+      };
+
+      stimulusContainer.innerHTML = `
+        <div class="text-center space-y-3">
+          <div class="text-emerald-400 text-4xl">✓</div>
+          <h2 class="text-xl font-bold text-white">آزمون به پایان رسید</h2>
+          <p class="text-xs text-slate-300">اطلاعات پردازش شد و به ربات ارسال گردید.</p>
+        </div>
+      `;
+      stimulusContainer.classList.remove('hidden');
+
+      // ارسال مستقیم به ربات تلگرام
+      if (tg) {
+        tg.sendData(JSON.stringify(finalReport));
+      } else {
+        console.log("Clinical Payload:", finalReport);
+      }
+    }
+  </script>
+</body>
+</html>
