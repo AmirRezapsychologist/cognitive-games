@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>آزمون تداخل استروپ (Stroop Task)</title>
+  <!-- اسکریپت رسمی وب‌اپ تلگرام -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- فریم‌ورک استایل‌دهی TailwindCSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -16,7 +18,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col items-center justify-between min-h-screen p-4 font-sans">
 
-  <!-- هدر و نوار پیشرفت -->
+  <!-- نوار وضعیت و پیشرفت بالایی -->
   <header class="w-full max-w-md pt-2">
     <div class="flex justify-between items-center text-xs text-slate-400 mb-1">
       <span id="phaseLabel">آماده‌سازی</span>
@@ -27,10 +29,10 @@
     </div>
   </header>
 
-  <!-- بوم اصلی نمایش محرک -->
+  <!-- بوم مرکزی نمایش محرک‌ها و پرده‌های راهنما -->
   <main class="w-full max-w-md flex-1 flex flex-col items-center justify-center relative">
     
-    <!-- صفحه شروع / توضیحات -->
+    <!-- صفحه اول: راهنمای آزمون -->
     <div id="introScreen" class="text-center space-y-4">
       <div class="w-14 h-14 bg-blue-600/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">🎯</div>
       <h1 class="text-xl font-bold text-white">آزمون توجه انتخابی و بازداری (استروپ)</h1>
@@ -40,8 +42,8 @@
         را انتخاب کنید و <strong class="text-rose-400">معنای کلمه</strong> را کاملاً نادیده بگیرید.
       </p>
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-400 text-right space-y-1">
-        <p>🔹 مرحله ۱: مرحله آزمایشی (تمرینی برای آشنایی)</p>
-        <p>🔹 مرحله ۲: آزمون اصلی با دقت و سرعت بالا</p>
+        <p>🔹 مرحله ۱: آشنایی و تمرینی (۴ ترایال)</p>
+        <p>🔹 مرحله ۲: آزمون اصلی با سنجش سرعت و دقت (۳۰ ترایال)</p>
       </div>
       <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3.5 px-6 rounded-xl shadow-lg transition active:scale-95">
         شروع مرحله تمرینی
@@ -56,10 +58,10 @@
       <span id="wordStimulus" class="text-5xl md:text-6xl font-black tracking-wide transition-transform"></span>
     </div>
 
-    <!-- فیدبک پایان مرحله -->
+    <!-- پرده انتقال به آزمون اصلی -->
     <div id="phaseTransitionScreen" class="hidden text-center space-y-4">
       <h2 class="text-lg font-bold text-emerald-400">مرحله تمرینی تکمیل شد</h2>
-      <p class="text-xs text-slate-300 px-4">اکنون وارد مرحله اصلی ارزیابی می‌شوید. با بیشترین سرعت و دقت ممکن پاسخ دهید.</p>
+      <p class="text-xs text-slate-300 px-4">اکنون وارد مرحله اصلی ارزیابی می‌شوید. لطفاً با بیشترین سرعت و دقت ممکن به رنگ فونت کلمات پاسخ دهید.</p>
       <button id="startMainBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition">
         شروع آزمون اصلی
       </button>
@@ -67,7 +69,7 @@
 
   </main>
 
-  <!-- کلیدهای پاسخ رنگی -->
+  <!-- کلیدهای پاسخ چهارگانه رنگی -->
   <footer id="responseKeys" class="w-full max-w-md grid grid-cols-2 gap-3 pb-4 opacity-30 pointer-events-none transition-opacity duration-150">
     <button data-color="red" class="bg-red-600/90 active:bg-red-700 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">قرمز</button>
     <button data-color="blue" class="bg-blue-600/90 active:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">آبی</button>
@@ -76,13 +78,14 @@
   </footer>
 
   <script>
+    // آماده‌سازی وب‌اپ تلگرام
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
       tg.expand();
     }
 
-    // پالت رنگ‌های استاندارد بالینی
+    // پالت رنگ‌های بالینی
     const COLORS = [
       { id: 'red', name: 'قرمز', hex: '#EF4444' },
       { id: 'blue', name: 'آبی', hex: '#3B82F6' },
@@ -90,7 +93,6 @@
       { id: 'yellow', name: 'زرد', hex: '#F59E0B' }
     ];
 
-    // متغیرهای استیت تسک
     let trials = [];
     let currentTrialIndex = 0;
     let stimulusStartTime = 0;
@@ -134,7 +136,7 @@
     document.getElementById('startBtn').addEventListener('click', () => {
       introScreen.classList.add('hidden');
       isPractice = true;
-      trials = generateTrials(4, 0.5); // ۴ ترایال تمرینی
+      trials = generateTrials(4, 0.5);
       currentTrialIndex = 0;
       trialResults = [];
       phaseLabel.innerText = 'مرحله تمرینی';
@@ -144,7 +146,7 @@
     document.getElementById('startMainBtn').addEventListener('click', () => {
       phaseTransitionScreen.classList.add('hidden');
       isPractice = false;
-      trials = generateTrials(30, 0.5); // ۳۰ ترایال اصلی بالینی
+      trials = generateTrials(30, 0.5);
       currentTrialIndex = 0;
       trialResults = [];
       phaseLabel.innerText = 'آزمون اصلی';
@@ -162,16 +164,13 @@
         }
       }
 
-      // به‌روزرسانی نوار وضعیت
       trialCounter.innerText = `${currentTrialIndex + 1} / ${trials.length}`;
       progressBar.style.width = `${((currentTrialIndex) / trials.length) * 100}%`;
 
-      // غیرفعال‌سازی ورودی
       setInputsActive(false);
       stimulusContainer.classList.add('hidden');
       fixationCross.classList.remove('hidden');
 
-      // نمایش نقطه تثبیت (Fixation: 500ms)
       setTimeout(() => {
         fixationCross.classList.add('hidden');
         showStimulus(trials[currentTrialIndex]);
@@ -196,7 +195,6 @@
       }
     }
 
-    // کنترل پاسخ کاربر
     document.querySelectorAll('#responseKeys button').forEach(btn => {
       btn.addEventListener('pointerdown', (e) => {
         if (!isAcceptingInput) return;
@@ -217,7 +215,6 @@
         }
 
         currentTrialIndex++;
-        // فاصله بین محرک‌ها (ISI: 400ms)
         setTimeout(runNextTrial, 400);
       });
     });
@@ -251,16 +248,22 @@
         <div class="text-center space-y-3">
           <div class="text-emerald-400 text-4xl">✓</div>
           <h2 class="text-xl font-bold text-white">آزمون به پایان رسید</h2>
-          <p class="text-xs text-slate-300">اطلاعات پردازش شد و به ربات ارسال گردید.</p>
+          <p class="text-xs text-slate-300">اطلاعات پردازش شد و در حال ثبت نهایی است...</p>
         </div>
       `;
       stimulusContainer.classList.remove('hidden');
 
-      // ارسال مستقیم به ربات تلگرام
-      if (tg) {
-        tg.sendData(JSON.stringify(finalReport));
-      } else {
-        console.log("Clinical Payload:", finalReport);
+      try {
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.sendData(JSON.stringify(finalReport));
+          setTimeout(() => {
+            window.Telegram.WebApp.close();
+          }, 300);
+        } else {
+          alert("خطا: وب‌اپ خارج از محیط رسمی کلاینت تلگرام باز شده است.");
+        }
+      } catch (err) {
+        alert("خطا در ارسال داده به تلگرام: " + err.message);
       }
     }
   </script>
